@@ -10,6 +10,8 @@ library(timeSeries)
 library(tseries)
 library(urca)
 library(tidyr)
+library(zoo)
+library(forecast)
 
 #Set working directory
 setwd("C:/R/Git Repo/projects_github/solar_forecast/")
@@ -61,7 +63,52 @@ for (i in 1:nrow(solar.data.structure)){
 
 #SORT data by area and date
 solar.data.dt %>% setorderv(.,cols = "datetime_beginning_ept", order = 1)
-solar.data.dt[ ,":=" (Date = date(datetime_beginning_ept),
+solar.data.dt[ ,":=" (Year = year(datetime_beginning_ept),
+                      Month = month(datetime_beginning_ept),
+                      Date = date(datetime_beginning_ept),
                       HE = hour(datetime_beginning_ept)+1)]
+solar.data.dt[ , DMO := ymd(paste(Year,Month,1,sep="-"))]
+                     
+#Plot the solar output data by area
+par(mfrow=c(5,1))
+plot(x = solar.data.dt[area == "RTO",datetime_beginning_ept], y = solar.data.dt[area == "RTO", solar_generation_mw])
+plot(x = solar.data.dt[area == "MIDATL", datetime_beginning_ept], y = solar.data.dt[area == "MIDATL", solar_generation_mw])
+plot(x = solar.data.dt[area == "SOUTH", datetime_beginning_ept], y = solar.data.dt[area == "SOUTH", solar_generation_mw])
+plot(x = solar.data.dt[area == "WEST",datetime_beginning_ept], y = solar.data.dt[area == "WEST", solar_generation_mw])
+plot(x = solar.data.dt[area == "OTHER",datetime_beginning_ept], y = solar.data.dt[area == "OTHER", solar_generation_mw])
+
+#Summarize data
+solar.data.summary.dt <- solar.data.dt[,lapply(.SD, function(x) mean(x, na.rm = TRUE)), .SDcols = "solar_generation_mw", by = c("area","Month","HE")] %>% setnames(.,"solar_generation_mw","AVG.MW")
+solar.data.summary.dt <- solar.data.summary.dt[solar.data.dt[, lapply(.SD, function(x) sd(x, na.rm = TRUE)), .SDcols = "solar_generation_mw", by = c("area","Month","HE")], on = c("area","Month","HE")] %>% setnames(.,"solar_generation_mw","STD.MW")
+solar.data.summary.dt <- solar.data.summary.dt[solar.data.dt[, lapply(.SD, function(x) max(x, na.rm = TRUE)), .SDcols = "solar_generation_mw", by = c("area","Month","HE")], on = c("area","Month","HE")] %>% setnames(.,"solar_generation_mw","MAX.MW")   
+solar.data.summary.dt <- solar.data.summary.dt[solar.data.dt[, lapply(.SD, function(x) min(x, na.rm = TRUE)), .SDcols = "solar_generation_mw", by = c("area","Month","HE")], on = c("area","Month","HE")] %>% setnames(.,"solar_generation_mw","MIN.MW")   
+#solar.data.summary.dt[,Month := month(DMO)]
+
+#PLOT avg output by month x hour
+par(mfrow=c(1,1))
+
+for (i in 1:12){
+  
+  data <- solar.data.summary.dt[Month == i & area == "RTO",]
+  
+  x <- data[,HE]
+  y <- data[,AVG.MW]
+  plot(x,y)
+  
+}
+
+#Analyze data for seasonality and trend
+#HE.ID = 12
+#MONTH.ID = 7
+#AREA.ID = "RTO"
+
+test.data <- solar.data.dt[area == "RTO" & HE == 1,solar_generation_mw]
+solar_ts <- ts(test.data, frequency = 24)
+solar_ts_clean <- tsclean(solar_ts)
+solar_ts_decompose <- decompose(solar_ts_clean, type ="add")
+plot(solar_ts_decompose)
+
+auto.arima(solar_ts_clean)
+adf.test(solar_ts_clean)
 
 
