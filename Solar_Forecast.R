@@ -84,7 +84,7 @@ solar.data.summary.dt <- solar.data.summary.dt[solar.data.dt[, lapply(.SD, funct
 solar.data.summary.dt <- solar.data.summary.dt[solar.data.dt[, lapply(.SD, function(x) min(x, na.rm = TRUE)), .SDcols = "solar_generation_mw", by = c("area","Month","HE")], on = c("area","Month","HE")] %>% setnames(.,"solar_generation_mw","MIN.MW")   
 #solar.data.summary.dt[,Month := month(DMO)]
 
-#PLOT avg output by month x hour
+#PLOT output by month x hour
 par(mfrow=c(1,1))
 
 for (i in 1:12){
@@ -97,18 +97,22 @@ for (i in 1:12){
   
 }
 
-#Analyze data for seasonality and trend
-#HE.ID = 12
-#MONTH.ID = 7
-#AREA.ID = "RTO"
-
-test.data <- solar.data.dt[area == "RTO" & HE == 1,solar_generation_mw]
+#ANALYZE data for seasonality and trend
+#SUBSET data for a specific hour for RTO level data
+test.data <- solar.data.dt[area == "RTO" & HE == 3,solar_generation_mw]
+#DEFINE frequency
 solar_ts <- ts(test.data, frequency = 24)
+#CLEAN data for outliers
 solar_ts_clean <- tsclean(solar_ts)
+#DECOMPOSE observed data into trend, seasonal, and random components 
 solar_ts_decompose <- decompose(solar_ts_clean, type ="add")
 plot(solar_ts_decompose)
 
-auto.arima(solar_ts_clean)
-adf.test(solar_ts_clean)
-
+#ANALYZE Random component of solar generation 
+solar_random <- solar_ts_decompose$random %>% as.data.table
+solar_random <- solar_random[!is.na(x),]
+auto.arima(solar_random)
+  adf.test(solar_random)
+  acf(solar_random)
+  pacf(solar_random)
 
